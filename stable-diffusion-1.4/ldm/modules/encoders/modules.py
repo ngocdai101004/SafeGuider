@@ -138,8 +138,29 @@ class FrozenCLIPEmbedder(AbstractEncoder):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
     def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
         super().__init__()
-        self.tokenizer = CLIPTokenizer.from_pretrained(version)
-        self.transformer = CLIPTextModel.from_pretrained(version)
+        # Thử lần lượt từng trường hợp
+        self.tokenizer = None
+        self.transformer = None
+        local_path = "/content/SafeGuider/stable-diffusion-1.4/openai/clip-vit-large-patch14"
+        tried_local = False
+
+        try:
+            self.tokenizer = CLIPTokenizer.from_pretrained(local_path)
+            self.transformer = CLIPTextModel.from_pretrained(local_path)
+            tried_local = True
+        except Exception as e_local:
+            tried_local = False
+
+        if not tried_local:
+            try:
+                self.tokenizer = CLIPTokenizer.from_pretrained(version)
+                self.transformer = CLIPTextModel.from_pretrained(version)
+                tried_version = True   
+            except Exception as e_version:
+                tried_version = False
+
+        if self.tokenizer is None or self.transformer is None:
+            raise RuntimeError("Cannot initialize CLIPTokenizer or CLIPTextModel from local_path: {} or version: {}!".format(local_path, version))
         self.device = device
         self.max_length = max_length
         self.freeze()
