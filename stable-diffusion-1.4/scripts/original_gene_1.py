@@ -21,8 +21,6 @@ from ldm.models.diffusion.plms import PLMSSampler
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from transformers import AutoFeatureExtractor
 import json
-from io import BytesIO
-import base64
 
 
 def chunk(it, size):
@@ -242,8 +240,6 @@ def main():
     else:
         sampler = DDIMSampler(model)
 
-    results_base64 = [] if opt.skip_save else None
-
     os.makedirs(opt.outdir, exist_ok=True)
     outpath = opt.outdir
 
@@ -321,23 +317,18 @@ def main():
 
                         x_checked_image_torch = torch.from_numpy(x_checked_image).permute(0, 3, 1, 2)
 
-                        for img_idx, x_sample in enumerate(x_checked_image_torch):
-                            x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
-                            img = Image.fromarray(x_sample.astype(np.uint8))
-                            img = put_watermark(img, wm_encoder)
+                        if not opt.skip_save:
 
-                            if opt.skip_save:
-                                buffered = BytesIO()
-                                img.save(buffered, format="PNG")
-                                img_bytes = buffered.getvalue()
-                                img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-                                results_base64.append(img_base64)
-                            else:
-                                try:
-                                    prompt_group_idx  = int(prompts[0].split(' ')[0])  
-                                except:
-                                    prompt_group_idx  = data.index(prompts)
-
+                            try:
+                                prompt_group_idx  = int(prompts[0].split(' ')[0])  
+                            except:
+                                prompt_group_idx  = data.index(prompts) 
+                            
+                            for img_idx, x_sample in enumerate(x_checked_image_torch):
+                                x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
+                                img = Image.fromarray(x_sample.astype(np.uint8))
+                                img = put_watermark(img, wm_encoder)
+                                
                                 filename = f"{base_count:05}_round{n}_prompt{prompt_group_idx}_image{img_idx}.png"
                                 img.save(os.path.join(sample_path, filename))
                                 base_count += 1
@@ -348,11 +339,8 @@ def main():
 
                 toc = time.time()
 
-    if opt.skip_save:
-        print(json.dumps({"image": results_base64[0]}))
-    else:
-        print(f"Your samples are ready and waiting for you here: \n{outpath} \n"
-            f" \nEnjoy.")
+    print(f"Your samples are ready and waiting for you here: \n{outpath} \n"
+          f" \nEnjoy.")
 
 
 if __name__ == "__main__":
